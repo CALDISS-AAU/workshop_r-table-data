@@ -1,0 +1,917 @@
+---
+title: "Working with Table Data with R"
+author: "Kristian Gade Kjelmann"
+date: "5 & 6 March 2019"
+output:
+  ioslides_presentation:
+    logo: caldiss_symbol_square.png
+    smaller: yes
+    widescreen: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r dataload, include = FALSE}
+library(tidyverse)
+library(haven)
+library(lubridate)
+library(gmodels)
+library(stargazer)
+
+data(mtcars)
+data_path <- '//ADM.AAU.DK/Users/kgk/Documents/CALDISS/Aktiviteter/Workshopmateriale/R table data/materials/'
+ess2014_main <- read_dta(paste0(data_path, "ESS2014_mainsub.dta"))
+ess2014_main2 <- read_dta(paste0(data_path, "ESS2014_mainsub_p2.dta"))
+ess2014_main3 <- read_dta(paste0(data_path, "ESS2014_mainsub_p3.dta"))
+ess2014_emp <- read_dta(paste0(data_path, "ESS2014_empsub.dta"))
+ess2014_pol <- read_dta(paste0(data_path, "ESS2014_polsub.dta"))
+
+ess2014_work <- dplyr::union(ess2014_main, ess2014_main2) %>%
+  dplyr::union(ess2014_main3) %>%
+  inner_join(ess2014_emp, by = "ident") %>%
+  inner_join(ess2014_pol, by = "ident")
+
+as_factor2 <- function(var) {
+  if (is.labelled(var)) {
+    var <- as_factor(var)
+	} else {
+	}
+  return(var)
+}
+
+ess2014_work <- as.data.frame(map(ess2014_work, as_factor2))
+```
+
+```{r datashuffle, include = FALSE}
+mtcars_new <- mtcars %>%
+  mutate(car = row.names(mtcars)) %>%
+  select(car, everything())
+
+datashuffle <- function(data) {
+  newdata <- data[, c(1, sample(c(2:ncol(data)), floor(ncol(data)/2)))]
+  newdata <- newdata[sample(c(1:nrow(data)), floor(nrow(data)/2)), ]
+  return(newdata)
+}
+
+rowshuffle <- function(data) {
+  newdata <- data[sample(c(1:nrow(data)), floor(nrow(data)/2)), ]
+  return(newdata)
+}
+
+mtcars_shuf1 <- datashuffle(mtcars_new)
+mtcars_shuf2 <- datashuffle(mtcars_new)
+
+mtcars_rshuf1 <- rowshuffle(mtcars_new)
+mtcars_rshuf2 <- rowshuffle(mtcars_new)
+
+```
+
+# DAY 1
+
+## Content of the R table data workshop - Day 1
+
+* Why R for table data?
+* Working with categorical data in R
+* Exploring table data
+* Subsetting and recoding with `dplyr`
+* Producing summary statistics easily
+* Merging and appending data
+* Working with string variables and date objects
+
+
+## Content of the R table data workshop - Day 2
+
+* Doing it smart: for loops
+* Doing it smart: mapping functions
+* Descriptive statistics in R
+* Tests of independence in R
+* Working with regression models in R
+* Exporting data and results
+
+
+## Why use R for table data?
+
+R is a free software environment with its own programming language. 
+
+R can work with a wide variety of data formats (Excel, text, csv's, STATA, SPSS, SAS and so on).
+
+R's programming capabilities makes it possible to automate some data cleaning processing.
+
+Working with a script ensures reproducibility and reusability of methods.
+
+
+## The RStudio environment
+
+During the workshops (and the other R workshops in CALDISS), we will be working with RStudio.
+
+RStudio is an IDE for R (Integrated Development Environment) - Makes for a nicer workspace
+
+<https://www.rstudio.com/products/rstudio/download/>
+
+You can work with RStudio on the AAU RStudio server: <https://samf-rstudio.aau.dk/> (use your regular AAU login)
+
+
+## R for Data Science
+```{r, out.width = "300px", echo = FALSE}
+knitr::include_graphics("r4ds.png")
+```
+
+
+## Packages used in this workshop
+
+In this workshop we will mainly be using the `tidyverse` package. It contains various packages for cleaning data.
+
+From `tidyverse` we will be using: `haven`, `dplyr`, `purrr`, `ggplot2`, `lubridate`
+
+We will also be using: `gmodels` and `stargazer`.
+
+Install the packages:
+
+```{r, eval = FALSE}
+install.packages(c('tidyverse', 'gmodels', 'stargazer'))
+```
+
+Load the packages into your environment:
+
+```{r, eval = FALSE}
+library(tidyverse)
+library(haven)
+library(lubridate)
+library(gmodels)
+library(stargazer)
+```
+
+
+## R Objects - Data frames
+
+"Data frames" are the R-equivalent of a spreadsheet (a table in rows and columns) and is one of the most useful storage structures for data analysis in R.
+
+Typically rows consist of individual observations and the columns of the different variables.
+
+R comes with some built-in datasets like `mtcars` (see all the avaiable datasets with `data()`).
+
+During the workshop I will be showing examples in the `mtcars` dataset.
+
+You will be doing exercises on a subset of the European Social Survey dataset from 2014 (<http://www.europeansocialsurvey.org/>).
+
+
+## Data from outher sources - `haven` package
+
+`haven` can be used to load data from software like SAS, STATA and SPSS.
+
+`read_spss` and `write_spss` can fx be used to read and write SPSS files.
+
+`haven` also imports value labels (descriptions of the different values) by using a new class called `labelled`.
+
+Use the `read_dta` function to load the main dataset for today ("ESS2014_mainsub.dta").
+
+
+## "New" classes - Tibbles and labelled
+
+### Tibbles
+
+`haven` imports data as so-called `tibbles`. They are a different kind of data frame that often is faster to work with.
+
+R recognizes tibbles as data frames. Commands that are usable on data frames therefore works on tibbles as well.
+
+### Labelled
+
+`haven` imports variables with value labels as the class `labelled`. 
+
+This class is different from how R usually handles labelled data (usually the class `factor`).
+
+Beware that a lot of commands are not compatible with this class.
+
+Use the command `as_factor` to convert a class `labelled` to a `factor`.
+
+
+## Working with categorical data in R
+
+The class `factor` is used to work with categorical data in R.
+
+The `factor` command can be used to create a factor (a variable with labels assigned to values).
+
+```{r}
+rand_vec <- sample(c(0,1), 100, replace = T)
+head(rand_vec)
+
+gender_labels <- c("Female", "Male")
+gender_vec <- factor(rand_vec, labels = gender_labels)
+head(gender_vec)
+head(as.character(gender_vec))
+```
+
+
+## Working with categorical data in R
+
+R mainly works with the labels of a factor. It is therefore not possible to do arithmetic operations and the like directly on factors without some modification.
+
+Some useful commands for factors:
+
+| Command | Description |
+|:-----|:------------|
+|`levels()` | Prints the labels of the factor |
+|`droplevels()` | Drops unsued levels (useful when doing statistics on tables) |
+|`as_factor()` | Converts a class to a factor (useful for `labelled`) |
+|`as.numeric()` | Converts to numeric - reveal underlying numerical value | 
+|`as.character()` | Converts to character using the labels |
+
+
+## Exploring table data
+
+Here is a collection of various commands useful for getting acquainted with table data:
+
+### Commands for the whole dataset
+
+| Command | Description |
+|:-----|:------------|
+|`head()` | Prints the first six observations |
+|`dim()` | Dimensions of data (rows and columns) |
+|`nrow()` | Number of rows |
+|`ncol()` | Number of columns | 
+|`colnames()` | Prints column names (names of variabes)
+|`rowSums()` | Calculates row-wise sums across columns |
+
+
+## Exploring table data
+
+### Commands for single variables
+
+| Command | Description |
+|:--------------|:---------------------------------------------------------------|
+|`head()` | Prints the first six observations |
+|`summary()` | Produces summary statistics |
+|`min()` | Lowest value in variable - Beware of default arguement `na.rm = FALSE` |
+|`max()` | Higest value in variable - Beware of default arguement `na.rm = FALSE` |
+|`range()` | Lowest and highest value - Beware of default arguement `na.rm = FALSE` |
+|`table()` | Table of counts at each factor level (useful for categorical variables) |
+|`attributes()` | Prints attributes. For `labelled` of `factor` it prints the variable and value labels |
+
+
+## EXERCISE 1: Getting acquainted with the data
+
+(@) Load the dataset `ESS2014_mainsub.dta` using `read_dta()` (remember to set the working directory)
+(@) Get acquainted with the data using the commands from the previous slides
+(@) Use `as_factor()` on variables giving you trouble
+
+
+## Subsetting data with `dplyr`
+
+`dplyr` contains a series of commands for subsetting data. A lot of these makes it easier to subset data compared to base R.
+
+| `dplyr` | R base | Description |
+|:------------------------------|:--------------------------------------|:-------------------------------------------------|
+|`filter(mtcars, am==1)` |`mtcars[mtcars$am==1]` | Filter observations based on condition |
+|`rename(mtcars, weight = wt)` |`mtcars$weight <- mtcars$wt` | Renaming variable (NOTE: base solution does not overwrite) |
+|`select(mtcars, mpg, weight)` |`mtcars[, c('mpg', 'weight')]` | Subset with specific variables |
+|`arrange(mtcars, cyl, mpg)` |`mtcars[order(mtcars$cyl, mtcars$mpg), ]` | Ordering observations - ascending |
+
+
+## Recoding with `dplyr`
+
+The command `mutate()` can be used to both create, duplicate or recode variables.
+
+```{r}
+mtcars_newvar <- mutate(mtcars_new, wt_kg = wt * 0.45359237)  #NEW VARIABLE
+head(select(mtcars_newvar, car, wt, wt_kg))
+mtcars_recode <- mutate(mtcars_new, wt = wt * 0.45359237)  #RECODE VARIABLE
+head(select(mtcars_recode, car, wt))
+```
+
+
+## Recoding NA values with `mutate`
+
+`mutate()` can also be used to work with missing values.
+
+Values can be encoded to `NA` with `mutate` in combination with `replace` or `na_if`:
+
+```{r}
+mtcars_na1 <- mutate(mtcars_new, mpg = replace(mpg, mpg>21, NA))  #OBSERVATIONS WITH mpg VALUE ABOVE 21 SET TO NA
+mtcars_na2 <- mutate(mtcars_new, am = na_if(am, 1))  #OBSERVATIONS WITH am VALUE 1 SET TO NA
+```
+
+`replace_na` can be used to replace NA with a given value:
+
+```{r}
+mtcars_nona <- mutate(mtcars_na2, am = replace_na(am, 1))  #NA OBSERVATIONS in am REPLACED WITH 1
+```
+
+
+## Combining commands with the pipe `%>%`
+
+The operator `%>%` can be used to chain together commands:
+
+```{r}
+data(mtcars)
+mtcars_new <- mtcars %>%
+  mutate(car = row.names(mtcars_new),
+         wt_kg = wt * 0.45359237) %>%
+  rename(wt_pounds = wt) %>%
+  filter(am==1) %>%
+  arrange(desc(mpg)) %>%
+  select(car, everything())
+
+head(mtcars_new)
+```
+  
+
+## Producing summary statistics with `summarise`
+
+`summarise` can be used to compute summary statistics.
+
+```{r, eval = FALSE}
+mtcars %>%
+  summarise(mean_mpg = mean(mpg))
+```
+
+When combined with `group_by` it is possible to create groupwise summary statistics. 
+
+```{r}
+mtcars %>%
+  group_by(gear) %>%
+  summarise(mean_mpg = mean(mpg),
+            gear_count = n())
+```
+
+If more than one variable is specified in `group_by` a group for each combination is made.
+
+
+## EXERCISE 2: COUNTRY-WISE AND GENDER-WISE MEAN AGE AND HEIGHT
+
+1. Create the variable `age` using the `mutate` command and the variable `yrbrn`
+2. Produce a data frame containing the following summary statistics:
+    + The mean age for each gender (`gndr`) in each country (`cntry`)
+    + The mean height for each gender (`gndr`) in each country (`cntry`)
+    + The number of males and females in each country (NOTE: `n()` counts the number of observatoin in a group specified with `group_by`)
+
+### Tips:
+
+- Use `group_by` to group observations in each combination of gender and country
+- Use `summarise` to create the summary statistics `mean` and count `n()`
+- Use the pipe `%>%` to chain commands together
+
+
+## Merging data (adding variables)
+
+`dplyr` contains various commands for merging datasets (adding variables) 
+
+`left_join` adds the variables and keeps all rows, creating `NA` if not present in the second dataset.
+
+```{r}
+mtcars_left <- left_join(mtcars_shuf1, mtcars_shuf2)  #DF1 ROWS WITH NO MATCHES RETURNED AS NA
+```
+
+`inner_join` only keeps the rows with matches in the second dataset.
+
+```{r}
+mtcars_inner <- inner_join(mtcars_shuf1, mtcars_shuf2)  #ROWS WITH NO MATCHES NOT RETURNED
+```
+
+The commands "guesses" the variables to match by. To match with a specifc variable, use the arguement `by = `.
+
+See `help(dplyr::join)` for other merge options.
+
+
+## Appending data (adding rows)
+
+Rows can be added with the `union` command. It adds rows while removing dubplicates.
+
+```{r}
+mtcars_union <- union(mtcars_rshuf1, mtcars_rshuf2)  #ADD ROWS - NO DUPLICATES
+```
+
+Other commands can be used to cross-reference observations in two datasets - like `intersect`.
+
+See `help(dplyr::setops)` for the various appending options.
+
+
+## EXERCISE 3: COMBINING DATA
+
+The dataset `"ESS2014_mainsub.dta"` is only a subset of the ESS 2014 data. It contains only a selection of variables and about a third of the observations.
+
+The datasets `"ESS2014_mainsub_p2.dta"` and `"ESS2014_mainsub_p3.dta"` contain the rest of the observations.
+
+The datasets `"ESS2014_empsub.dta"` and `"ESS2014_polsub.dta"` contian additional variables.
+
+(@) Use the proper append command to add the additional observations (there should be 40.185 observations in the final dataset)
+(@) Use the proper merge command to add the additional variables - if necessary, merge by variable `ident` (there should be 43 variables in total)
+(@) Use `filter` to create the subset `ESS2014_GB` consisting of only observations from Great Britain (`cntry == 'GB'`)
+
+When done, you should have a dataset with all 40.185 observations and 43 variables and a dataset with all respndents from Great Britain.
+
+
+## Working with strings 
+
+```{r stringobjects, include=FALSE}
+car_upper <- str_to_upper(mtcars_new$car[1])
+car_lower <- str_to_lower(mtcars_new$car[2]) 
+
+car_sub <- str_sub(mtcars_new$car[1], 1, 4)
+
+car_subset <- str_subset(mtcars_new$car, "Toyota")[1]  #STRINGS
+car_index <- str_which(mtcars_new$car, "Toyota")[1]  #INDICES
+
+car_repl <- str_replace(mtcars_new$car, "Merc", "Mercedes")[8]
+
+car_split <- str_split(mtcars_new$car[c(8:10)], " ")[[1]]
+
+car_extr <- str_extract(mtcars_new$car[c(8:10)], ".*(?= )")[[1]]
+
+car_sent <- paste("The car", mtcars_new$car[1], "has", mtcars_new$gear[1], "gears!")
+```
+
+The package `stringr` (part of `tidyverse`) contains various commands to work with strings (character values).
+
+| Code | Output | Description |
+|:----------------------------------------------|:------------|:-----------------------------------------------|
+|`str_to_upper(mtcars_new$car[1])` |`"MAZDA RX4"` | Convert to upper case |
+|`str_to_lower(mtcars_new$car[2])` |`"mazda rx4 wag"` | Convert to lower case |
+|`str_sub(mtcars_new$car[1], 1, 4)` |`"Mazd"` | Extract substring based on positions |
+|`str_subset(mtcars_new$car, "Toyota")` |`"Toyota Corolla"` | Extract observations containing string |
+|`str_which(mtcars_new$car, "Toyota")` |`20 21` | Extract index of observations containing string "Toyota" |
+|`str_replace(mtcars_new$car, "Merc", "Mercedes")` |`"Mercedes 240D"` | Replace string |
+|`str_split(mtcars_new$car[c(8:10)], " ")` |`"Merc" "240D"` | Split string based on pattern (here a space " ") |
+|`str_extract(mtcars_new$car[c(8:10)], ".*(?= )")[[1]]` |`"Merc"` | Extract substring based on expression (regexpr) |
+
+
+## Working with dates
+
+R can work with dates and times. These have the class `Date`.
+
+The package `lubridate` with a command like `ymd` makes it simple to convert dates to date-objects.
+
+```{r}
+test_date <- "2019-07-23"
+class(test_date)
+
+date_ymd <- ymd(test_date)
+class(date_ymd)
+```
+
+
+## Working with dates
+
+Time differences can be stored in a special period class with `as.period`.
+
+```{r}
+date2_ymd <- ymd("2017-01-23")
+
+a_timedif <- as.period(date_ymd - date2_ymd)
+as.numeric(a_timedif, unit = "days")
+```
+
+"ymd" is short for "year-month-dates". Using this command thus specifies the order of the date information. "dmy" for "date-month-year" and "mdy" for "month-year-date" are commands as well.
+
+
+## Working with dates
+
+The combination of string-manipulation commands and date-commands makes it possible to create date objects using information from several objects.
+
+```{r}
+a_year <- "1995"
+a_month <- "september"
+a_day <- "19"
+a_hour <- "12"
+a_minute <- "45"
+
+a_datetime <- paste(a_year, a_month, a_day, a_hour, a_minute, sep = "-")
+a_datetime
+
+a_date_ymdhm <- ymd_hm(a_datetime)
+a_date_ymdhm
+```
+
+
+## EXERCISE 4: DATES
+
+The variables `inwdds`, `inwmms`, `inwyys`, `inwshh`, `inwsmm`, `inwdde`, `inwmme`, `inwyye`, `inwehh`, `inwemm` contain information about the date and time for the interview.
+
+(@) Use `paste` or `unite` to create a variable for interview start and end (names: `int_start` and `int_end`). It should contain both date and time.
+(@) Convert the variables to datetime objects using the proper `lubridate` command (like `ymd_hm`)
+(@) Create the variable `int_length` for the length of the interview (use `as.period`)
+(@) Recode the variable `int_length` to length in minutes (use `as.numeric(int_length, unit = "minutes")`)
+
+
+## EXERCISE 5: EXTRAS
+
+#### Years unemployed
+
+(@) Look for a variable that contains information about the respondents last year in employment.
+(@) Create the variable `year_unemp` containing the number of years the respondents has been unemployed.
+
+#### Trust in institutions
+
+The variables imported from `"ESS2014_polsub.dta"` contains information about the repsondents trust in various state and political institutions. All these variables start with `"trst"`.
+
+(@) Create the the index variable `inst_trst` which gives the respondent a combined score of 0-100 based on how much they rate their trust in the individual institutions (100 = Highest trust score in all institutions).
+  + Use `str_which` to extract the indexes of the institutional trust variables.
+    - `^` can be used to specify that a string should start with a specific set of characters
+    - `.` can be used as a wildcard (any character)
+    - `*` can be used to repeat the preceding character 1 or more times
+  + Use `mutate` to create a new variable
+  + Use `rowSums` to calculate the row sum across the institutional trust variables
+  + Calculate the score in percent (sum of scores / max score * 100)
+ 
+# DAY 2
+
+## Content of the R table data workshop - Day 2
+
+* Doing it smart: for loops
+* Doing it smart: mapping functions
+* Descriptive statistics in R
+* Tests of independence in R
+* Working with regression models in R
+* Exporting data and results
+
+
+## FOLLOW-UP FROM DAY 1
+
+Before we proceed, we all need to have the same dataset.
+
+(@) If you haven't already, re-download the datasets from moodle
+(@) Read in all the datasets
+(@) Create a copy of the first "mainsub" data. This will be used to add append and merge the other datasets to.
+(@) Use `union` to append the additional observations from `"ESS2014_mainsub_p2.dta"` and `"ESS2014_mainsub_p3.dta"` (there should be 40.185 observations in the final dataset)
+(@) Use `inner_join`to merge the additional variables from `"ESS2014_empsub.dta"` and `"ESS2014_polsub.dta"` - if necessary, merge by variable `ident` (there should be 43 variables in total)
+
+When done, you should have a dataset with all 40.185 observations and 43 variables and a dataset with all respndents from Great Britain.
+
+
+## FOLLOW-UP FROM DAY 1
+
+To not lose the variable labels, we store them in a vector:
+
+```{r, eval = FALSE}
+ess_allattr <- lapply(ess2014_work, attributes)
+ess_varlabels <- unlist(lapply(ess_allattr, `[[`, "label"))
+```
+
+To get rid of haven_labelled, we convert all variables to factors in the combined dataset:
+
+```{r, eval = FALSE}
+ess2014_work <- as.data.frame(lapply(ess2014_work, as_factor))
+```
+
+If you get errors from above function, try using this instead:
+
+```{r, eval = FALSE}
+as_factor2 <- function(var) {
+  if (is.labelled(var)) {
+    var <- as_factor(var)
+	} else {
+	}
+  return(var)
+}
+ess2014_work <- as.data.frame(lapply(ess2014_work, as_factor2))
+```
+
+## FOLLOW-UP FROM DAY 1
+
+Now that all variables are factors, we have to beware when working with the variables!
+
+To recode a factor to numeric, use the following:
+
+```{r, eval = FALSE}
+as.numeric(as.character(var))
+as.numeric(levels(var))[var]  #Alternative
+```
+
+To recode a factor to character, use the following:
+
+```{r, eval = FALSE}
+as.character(var)
+```
+
+If you need to add the variable label to the variable again, use `attr`:
+
+```{r, eval = FALSE}
+attr(ess2014_work, "ppltrst") <- ess_varlabels["ppltrst"]
+```
+
+
+## WARMING UP
+
+(@) (Re-)create the `age` variable in the combined dataset (beware of class).
+(@) Look for a variable that contains information about the respondents last year in employment.
+(@) Create the variable `year_unemp` containing the number of years the respondents has been unemployed (beware of class).
+(@) Use `filter` to create the subset `ESS2014_GB` consisting of only observations from Great Britain (`cntry == 'GB'`)
+  
+
+## R Objects - Lists
+
+Lists are objects that group all sorts of values an objects together.
+
+Unlike a vector, a list can contain objects of different classes. It is very useful to store a lot of varied information.
+
+Lists can contain all sorts of objects: numbers, strings, vectors, lists, data frame.
+
+Lists are created with `list()`.
+
+Lists can be subset using `[]` (the list element) and `[[]]` (the list content/object).
+
+
+## R Objects - Lists
+```{r, echo = TRUE}
+stuff_list <- list(myNumb = 45,
+                   myName = 'toby',
+                   myVec = c(32, 5, 21, 29)
+)
+stuff_list[1]
+stuff_list[[1]]
+stuff_list[["myNumb"]]
+```
+
+Notice the differences in the subsetting!
+
+
+## R Programming - for loops
+
+for loops are used to iterate over several elements.
+
+```{r, echo = TRUE}
+x <- 2
+for (i in 1:5) {
+  x <- x + 1
+  print(x)
+}
+```
+
+
+## R Programming - for loops
+
+for loops are very useful in combination with lists. Combining these commands, we can create a list consisting of various objects gathered from several elements.
+
+```{r, echo=TRUE}
+data(mtcars)
+gear_count <- sort(unique(mtcars$gear))
+
+mpg_means <- list()
+for (i in 1:length(gear_count)) {
+  mpg_gear <- mtcars$mpg[mtcars$gear == gear_count[i]]
+  mpg_mean <- mean(mpg_gear)
+  listname <- paste(gear_count[i], "gears")
+  mpg_means[[listname]] <- mpg_mean
+}
+mpg_means
+```
+
+
+## EXERCISE 6: LISTS AND FOR LOOPS
+
+1. Create a list containing a subset for each country (use `unique` to extract the unique values of `cntry`)
+
+
+## EXERCISE 6: LISTS AND FOR LOOPS - Guided version
+
+1. Create a list containing a subset for each country. 
+    + Create a vector containing the unique values of `cntry` (use `unique`) - fx `ess_countries`
+    + Create an empty list (fx `ess_subsets <- list()`)
+    + Use a for loop to create a subset for each country and store them in the list.
+        - `for (i in ess_countries) {` - Note that `i` in the loop will be individual countries in this case!
+        - Within the loop, subset the data frame so it only contains rows from the given country (`ess_subset <- filter(ess2014_work, cntry == i)`)
+        - Add the subset to the list using country as name for the list element: `ess_subsets[[i]] <- ess_subset`
+
+
+## Map functions
+
+Map functions applies a function to each element in an object (elements in a list, varaibles in a data frame or something else).
+
+Map functions are an alternative way of iterating over several elements. In a for loop there is the potential risk of creating infinite loops which we do not run into with map functions.
+
+The main map function is `map`. `map` will always return a list.
+
+A function like `map_dbl` return a vector of doubles (numeric).
+
+See `?purrr::map` for additional map functions.
+
+
+## Map functions
+
+Using a for loop for creating mean for each variable in `mtcars` (with some error handling):
+
+```{r, eval = FALSE}
+for (var in mtcars) {
+  if (is.numeric(var)) {
+    print(mean(var))
+  } else {}
+}
+```
+
+Map function alternative (no error handling required):
+
+```{r, eval = FALSE}
+map_dbl(mtcars, mean)
+```
+
+
+## Using map functions in data wrangling
+
+Map functions can be used with our own functions as well.
+
+```{r, eval = FALSE}
+cat_recode.f <- function(var) {  #FUNCTION TO RECODE FROM 10 TO 5
+  newvar <- ceiling(as.numeric(var)/2)
+  return(newvar)
+}
+
+recode_var <- c("ppltrst", "happy", "euftf", "lrscale")
+
+ess2014_work[, recode_var] <- map_dfc(ess2014_work[, recode_var], cat_recode.f)
+```
+
+
+## Descriptive statistics in R
+
+The most basic function to get an overview of a single variable is `summary`.
+
+`summary` changes it output dependent on the class:
+
+```{r}
+ess2014_work$height <- as.numeric(levels(ess2014_work$height))[ess2014_work$height]
+summary(ess2014_work$height)
+
+summary(ess2014_work$gndr)
+```
+
+
+## Descriptive statistics in R
+
+To create contingency tables of one or two variables, use `table`
+
+```{r}
+with(mtcars, table(gear, cyl))
+```
+
+
+## Descriptive statistics in R
+
+When tables are assigned to an object, they become table objects.
+
+```{r}
+gearcyl_tab <- with(mtcars, table(gear, cyl))
+```
+
+To get the proportions, use `prop.table`. To get row or column total, use `margin.table`.
+
+```{r}
+prop.table(gearcyl_tab, 2)  # PROPORTIONS - 1 = ROW, 2 = COLUMN
+
+margin.table(gearcyl_tab, 2) # TOTALS - 1 = ROW, 2 = COLUMN
+```
+
+
+## Tables and factors
+
+When `table` is used on factors, it will always table all levels, even when there are no observations.
+
+```{r}
+table(ess2014_work$gndr)
+```
+
+To avoid this (as it may interfere with statistical tests), we use `droplevels`.
+
+```{r}
+table(droplevels(ess2014_work$gndr))
+```
+
+
+## Tests of independence - chi-squared
+
+When `summary` is used on a table, we get relevant summary statistics.
+
+```{r}
+gearcyl_tab <- with(mtcars, table(gear, cyl))
+
+summary(gearcyl_tab)
+```
+
+The Chi-squared can be calculated on its own with `chisq.test(gearcyl_tab)`
+
+
+## Tests of independence - t.test
+
+A students t-test can be calculated using `t.test`.
+
+```{r}
+t.test(ess2014_work$height ~ ess2014_work$gndr)
+```
+
+The default is a two-sided unpaired t-test. This can be changed in the arguements (see `t.test`).
+
+The `~` is used to denote formuals in R. They should be written as `Y ~ X`.
+
+
+## EXERCISE 7: TESTS OF INDEPENDENCE
+
+Use your GB subset for the following exercises.
+
+(@) Examine the variables `tvtot` and `happy`. What are they measuring?
+(@) Create a crosstabel of `tvtot` and `happy`. Drop unwanted factor levels with `droplevels()`
+(@) Compute a chi-squared statistic for the crosstable. Is there a connection between the two variables?
+(@) Examine the variables `icpdwrk` and `lrscale`. What are they measuring? If we are to assume a relationship between the two, determine the dependent (Y) and independet (X) variable.
+(@) Compute a t-test. What does it tell us? (beware of classes - dependent has to be numeric)
+
+
+## The `CrossTable` function (`gmodels`)
+
+Base R leaves us with few options when we want to combine a lot of information in a table.
+
+`CrossTable` allows us to include counts, proportions, totals and various tests in the same table.
+
+```{r, eval = FALSE}
+CrossTable(droplevels(ess2014_work$tvtot), droplevels(ess2014_work$gndr), 
+           prop.r = TRUE, prop.c = FALSE, prop.t = FALSE, prop.chisq = FALSE, total.r = TRUE, 
+           total.c = TRUE, chisq = TRUE, dnn = c('TV Time', 'Gender'))
+```
+
+
+## Statistics in R: Linear regression
+
+Regression models in R are carried out by specifying the type of model, fitting the model and then calling the appropriate statistics (regression, ANOVA etc.).
+
+`lm` is used for linear models:
+
+```{r}
+wt_mpg_model <- lm(mpg ~ wt, data = mtcars)
+```
+
+This fits the formula: mpg = B~0~ + B~1~*wt. The object created is a `lm` object.
+
+When `summary` is used on a `lm` object (or any model object) we obtain the relevant regression statistics.
+
+```{r}
+summary(wt_mpg_model)
+```
+
+`anova(wt_mpg_model)` prints the analysis of variance.
+
+
+## Statistics in R: Linear regression
+
+To fit a multiple regression model, simply add the additional variables.
+
+```{r}
+wt_mpg_model2 <- lm(mpg ~ wt + cyl, data = mtcars)
+summary(wt_mpg_model2)
+```
+
+Interaction terms can be created with `:` (`wt:cyl`) while crossterms can be created with `*` (`wt*cyl`).
+
+
+## Statistics in R: Logistic regression
+
+Most models in R can be fitted using the `glm` function. This function just requires that the type model is specified.
+
+To fit a logit model, specify `family = binomial(link = "logit"))` (although "logit" is default in the binomial family).
+
+```{r}
+am_wt_model <- glm(am ~ wt, data = mtcars, family = binomial(link = "logit"))
+summary(am_wt_model)
+```
+
+
+## EXERCISE 8: REGRESSION MODELS
+
+Use you GB subset for the following exercise.
+
+(@) Examine the variables `happy`, `tvtot`, `ctzcntr`. What are they measuring?
+(@) Assuming a relationship between the variables above, determine the dependent variable.
+(@) Fit a multiple linear regression model using the variables above. Include `gndr` and `age` as control/additional independent variables (beware of classes - we are treating several categorical variables as interval variables for this exercise).
+
+
+## Exporting results with `stargazer`
+
+Often we need to export our results somehow. Base R leaves us with few options of doing that.
+
+`stargazer` is a package for exporting R output in for example HTML or LaTeX. Here an example for a model:
+```{r, eval = FALSE}
+stargazer(wt_mpg_model2, type = "html", out = paste0(work_path, "modelout.html"))
+```
+
+When exporting as HTML, the table can easily be copied into for example word or excel.
+
+The options in `stargazer` are immense. See the documentation for additional information.
+
+
+## Exporting data
+
+`haven` can be used to save into foregin file formats as well.
+
+```{r, eval = FALSE}
+write_dta(mtcars, "my_mtcars.dta")  # SAVE AS STATA .dta file.
+```
+
+`write_csv` or `write_delim` can be used to save .csv files, which can be opened by a wide variety of programs (including Excel)
+
+```{r, eval = FALSE}
+write_csv(mtcars, "my_mtcars.csv")  # SAVE AS .csv (COMMA SEPARATED)
+write_delim(mtcars, "my_mtcars.csv", delim = ";") #.csv with ";" as delimiter
+```
+
+R objects (like data frames) can be saves using `saveRDS` (loaded with `readRDS`)
+
+```{r, eval = FALSE}
+saveRDS(mtcars, "my_mtcars.rds")
+```
