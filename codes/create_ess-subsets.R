@@ -95,3 +95,8 @@ write_dta(ess_mainsub, "ess2014_mainsub.dta")
 write_dta(ess_mainsub_p1, "ess2014_mainsub_p1.dta")
 write_dta(ess_mainsub_p2, "ess2014_mainsub_p2.dta")
 write_dta(ess_trstsub, "ess2014_trstsub.dta")
+
+write_csv(ess_mainsub, "ess2014_mainsub.csv")
+write_csv(ess_mainsub_p1, "ess2014_mainsub_p1.csv")
+write_csv(ess_mainsub_p2, "ess2014_mainsub_p2.csv")
+write_csv(ess_trstsub, "ess2014_trstsub.csv")
