@@ -50,6 +50,25 @@ ess_sub <- ess_sub %>%
   mutate(polpartvt = ess_2014_newvar) %>%
   select(-one_of(party_varnames))
 
+## FIX LABELLED ##
+class_check <- function(var){
+  if (class(var) == "haven_labelled"){
+    var = as_factor(var)
+  }
+  return(var)
+}
+
+ess_sub <- map_dfc(ess_sub, class_check)
+
+num_var <- c("cgtsday", "height", "weight", "yrbrn")
+
+lvl_to_num <- function(var) {
+  var = as.numeric(levels(var))[var]
+  return(var)
+}
+
+ess_sub[, num_var] <- map_dfc(ess_sub[, num_var], lvl_to_num)
+
 ## SPLIT DATA ##
 
 trstvars <- colnames(ess_sub)[grep('^trst.*', colnames(ess_sub))]
