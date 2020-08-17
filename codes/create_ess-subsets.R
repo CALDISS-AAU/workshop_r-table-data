@@ -69,12 +69,28 @@ lvl_to_num <- function(var) {
 
 ess_sub[, num_var] <- map_dfc(ess_sub[, num_var], lvl_to_num)
 
+## INTERVIEW VARIABLES
+library(stringr)
+# inwdds: day of month, start
+# inwmms: month, start
+# inwyys: year, start
+# inwshh: hour, start
+# inwsmm: minute, start
+# inwdde: day of month, end
+# inwmme: month, end
+# inwyye: year, end
+# inwehh: hour, end
+# inwemm: minute, end
+
+int_var <- str_subset(colnames(ess_sub), "^inw.{3}")
+
 ## SPLIT DATA ##
 
 trstvars <- colnames(ess_sub)[grep('^trst.*', colnames(ess_sub))]
 
-ess_mainsub <- select(ess_sub, -one_of(trstvars))
+ess_mainsub <- select(ess_sub, -all_of(trstvars))
 ess_trstsub <- select(ess_sub, idno, trstvars)
+ess_inwsub <- select(ess_sub, idno, all_of(int_var))
 
 ## SPLIT OBSERVATIONS ##
 set.seed(42)
@@ -95,8 +111,10 @@ write_dta(ess_mainsub, "ess2014_mainsub.dta")
 write_dta(ess_mainsub_p1, "ess2014_mainsub_p1.dta")
 write_dta(ess_mainsub_p2, "ess2014_mainsub_p2.dta")
 write_dta(ess_trstsub, "ess2014_trstsub.dta")
+write_dta(ess_inwsub, "ess2014_inwsub.dta")
 
 write_csv(ess_mainsub, "ess2014_mainsub.csv")
 write_csv(ess_mainsub_p1, "ess2014_mainsub_p1.csv")
 write_csv(ess_mainsub_p2, "ess2014_mainsub_p2.csv")
 write_csv(ess_trstsub, "ess2014_trstsub.csv")
+write_csv(ess_inwsub, "ess2014_inwsub.csv")
